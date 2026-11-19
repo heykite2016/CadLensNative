@@ -415,9 +415,11 @@ extension CanvasView {
         if draggingLabel, let index = selectedAnnotation,
            let document = document, index < document.annotations.count {
             let world = transform.toWorld(viewPoint)
+            // labelOffset 是屏幕像素（renderer 把它加到 view 坐标上），
+            // 拖动量的世界坐标必须先乘当前 scale，否则模型空间会放大几千倍。
             document.annotations[index].labelOffset = CGPoint(
-                x: labelDragOriginOffset.x + (world.x - labelDragStart.x),
-                y: labelDragOriginOffset.y + (world.y - labelDragStart.y))
+                x: labelDragOriginOffset.x + (world.x - labelDragStart.x) * transform.scale,
+                y: labelDragOriginOffset.y + (world.y - labelDragStart.y) * transform.scale)
             needsDisplay = true
             return
         }
@@ -751,23 +753,34 @@ extension CanvasView {
         guard points.count >= 2 else { return .zero }
         let a = points[0], b = points[1]
         let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
-        let fallback = 30 / max(transform.scale, 1e-9)
+        let scale = max(transform.scale, 1e-9)
+        let fallback: CGFloat = 30
+
+        // 把“鼠标到几何线的屏幕距离”限制在可读范围内：
+        // 太近会和墙线/数字叠在一起，太远会飞出图面。范围内严格跟随鼠标。
+        func bounded(_ screen: CGFloat) -> CGFloat {
+            let sign: CGFloat = screen < 0 ? -1 : 1
+            return sign * min(max(abs(screen), 14), 180)
+        }
+
         if tool == .linear {
             if abs(b.x - a.x) >= abs(b.y - a.y) {
-                let dy = placement.map { $0.y - mid.y } ?? fallback
-                return CGPoint(x: 0, y: dy)
+                let dy = placement.map { ($0.y - mid.y) * scale } ?? fallback
+                return CGPoint(x: 0, y: bounded(dy))
             }
-            let dx = placement.map { $0.x - mid.x } ?? fallback
-            return CGPoint(x: dx, y: 0)
+            let dx = placement.map { ($0.x - mid.x) * scale } ?? fallback
+            return CGPoint(x: bounded(dx), y: 0)
         }
         var nx = -(b.y - a.y), ny = b.x - a.x
         let length = max(hypot(nx, ny), 1e-9)
         nx /= length; ny /= length
-        // placement 是用户点下的位置，必须原样使用；旧的"离墙太近就弹到
-        // 30px 外"会让尺寸线在点击后突然离开鼠标。只有回车（placement=nil）
-        // 才使用默认外偏。
-        let offset = placement.map { ($0.x - mid.x) * nx + ($0.y - mid.y) * ny } ?? fallback
-        return CGPoint(x: nx * offset, y: ny * offset)
+        let worldOffset = placement.map {
+            ($0.x - mid.x) * nx + ($0.y - mid.y) * ny
+        }
+        // placement 是用户点下的位置；范围内原样跟随，不做“离墙太近就弹到
+        // 30px 外”的突跳。世界偏移先乘 scale 变成屏幕像素，再做上下限。
+        let screenOffset = bounded((worldOffset ?? fallback) * (placement == nil ? 1 : scale))
+        return CGPoint(x: nx * screenOffset, y: ny * screenOffset)
     }
 
     func cancelMeasurement() {
@@ -1158,8 +1171,8 @@ extension CanvasView {
         if (mid.x - box.midX) * nx + (mid.y - box.midY) * ny < 0 {
             nx = -nx; ny = -ny
         }
-        let distance = 30 / max(transform.scale, 1e-9)
-        return CGPoint(x: nx * distance, y: ny * distance)
+        // labelOffset 是屏幕像素，不是世界坐标；固定外偏 30px。
+        return CGPoint(x: nx * 30, y: ny * 30)
     }
 
     /// 批量预览转正：只有这里才真正写进 document、注册撤销、落盘。
@@ -1303,9 +1316,11 @@ extension CanvasView {
 
     private func labelHit(_ annotation: Annotation, at world: CGPoint) -> Bool {
         let center = annotation.center
-        let label = CGPoint(x: center.x + annotation.labelOffset.x,
-                            y: center.y + annotation.labelOffset.y)
-        let tolerance = 24 / transform.scale
+        let scale = max(transform.scale, 1e-9)
+        // labelOffset 是像素；换算回世界坐标再和鼠标世界点比较。
+        let label = CGPoint(x: center.x + annotation.labelOffset.x / scale,
+                            y: center.y + annotation.labelOffset.y / scale)
+        let tolerance = 24 / scale
         return abs(world.x - label.x) < tolerance && abs(world.y - label.y) < tolerance
     }
 
