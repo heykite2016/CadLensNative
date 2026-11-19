@@ -1228,7 +1228,13 @@ final class CadDocument {
     /// 墙、梁、弧形阳台的边都是圆弧，两点一连量出来的是弦长——差的那一截在
     /// 现场是要按实际弧长下料的。判据用两点到圆心的距离，因为点在弧上时线段
     /// 会从弧内部穿过，用线段求交不可靠。
-    func arcPath(from a: CGPoint, to b: CGPoint, tolerance: CGFloat) -> [CGPoint]? {
+    /// 端点 + 圆弧上任意一点确定唯一圆弧。
+    ///
+    /// 只给两个端点时，圆有两条弧、同半径的圆弧也可能有多条；因此连续测量/
+    /// 侧面积会先让用户补一个弧上点，再把 `through` 传进来。`through == nil`
+    /// 时保留旧行为（短弧/实体自身弧），供多边形等其它路径使用。
+    func arcPath(from a: CGPoint, to b: CGPoint,
+                 through: CGPoint? = nil, tolerance: CGFloat) -> [CGPoint]? {
         guard tolerance > 0 else { return nil }
         let box = CGRect(x: min(a.x, b.x) - tolerance, y: min(a.y, b.y) - tolerance,
                          width: abs(b.x - a.x) + tolerance * 2,
@@ -1252,14 +1258,50 @@ final class CadDocument {
                 start = normalised(start - base)
                 end = normalised(end - base)
                 guard start <= span + 1e-6, end <= span + 1e-6 else { continue }
+                if let through {
+                    // 弧上点必须真的落在这条实体弧的角域内，否则同半径的
+                    // 另一条弧会被误选。
+                    let throughAngle = normalised(atan2(through.y - center.y,
+                                                        through.x - center.x) - base)
+                    let radial = abs(hypot(through.x - center.x,
+                                           through.y - center.y) - radius)
+                    let inside: Bool
+                    if start <= end {
+                        inside = throughAngle >= start - 1e-6
+                            && throughAngle <= end + 1e-6
+                    } else {
+                        // 弧跨过 0° 时角域是 [start, 2π) ∪ [0, end]。
+                        // 端点反着点也要接受。
+                        inside = throughAngle >= start - 1e-6
+                            || throughAngle <= end + 1e-6
+                    }
+                    guard radial <= tolerance, inside else { continue }
+                }
                 sweep = end - start
                 if sweep < 0 { sweep += 2 * .pi }
                 start += base
             } else {
-                // 圆没有方向，取两点之间的短弧。
-                sweep = end - start
-                while sweep <= -.pi { sweep += 2 * .pi }
-                while sweep > .pi { sweep -= 2 * .pi }
+                if let through {
+                    // 圆有两个方向；弧上点决定走哪一侧，也决定是短弧还是长弧。
+                    let throughAngle = normalised(atan2(through.y - center.y,
+                                                        through.x - center.x))
+                    let radial = abs(hypot(through.x - center.x,
+                                           through.y - center.y) - radius)
+                    guard radial <= tolerance else { continue }
+                    let startAngle = normalised(start)
+                    let throughRel = normalised(throughAngle - startAngle)
+                    let ccw = normalised(end - start)
+                    if throughRel <= ccw {
+                        sweep = ccw
+                    } else {
+                        sweep = ccw - 2 * .pi
+                    }
+                } else {
+                    // 圆没有方向，取两点之间的短弧。
+                    sweep = end - start
+                    while sweep <= -.pi { sweep += 2 * .pi }
+                    while sweep > .pi { sweep -= 2 * .pi }
+                }
             }
             guard abs(sweep) > 1e-4 else { continue }
             let steps = max(2, Int(abs(sweep) / (6 * .pi / 180)) + 1)

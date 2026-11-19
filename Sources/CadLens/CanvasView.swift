@@ -17,6 +17,8 @@ final class CanvasView: NSView {
             activeTool = nil
             pendingBatch.removeAll()
             awaitingDimensionLine = false
+            awaitingArcPoint = false
+            arcThrough.removeAll()
             measurePoints.removeAll()
             // Switching tabs swaps the document's display list (paper entities
             // + model content projected through this layout's viewports).
@@ -140,6 +142,8 @@ final class CanvasView: NSView {
             measurePoints.removeAll()
             measureHover = nil
             awaitingDimensionLine = false
+            awaitingArcPoint = false
+            arcThrough.removeAll()
             pendingBatch.removeAll()
             pendingBatchViewRect = .zero
             if activeTool != nil {
@@ -179,6 +183,8 @@ final class CanvasView: NSView {
         // 左侧蓝色高亮曾经在某些收尾路径上不同步，用户得再点一下画布才
         // 退出；多这一行是幂等的，不改变正常路径。
         onToolChanged?(nil)
+        awaitingArcPoint = false
+        arcThrough.removeAll()
         measureHover = nil
         snapResult = nil
         needsDisplay = true
@@ -191,6 +197,9 @@ final class CanvasView: NSView {
     var onRepeatLastTool: (() -> Void)?
 
     var measurePoints: [CGPoint] = []
+    /// 连续/侧面积：每条“端点→端点”的圆弧段由弧上一点确定；key 是起点下标。
+    var arcThrough: [Int: CGPoint] = [:]
+    var awaitingArcPoint = false
     private var hasPerformedInitialFit = false
     /// Canvas size captured by the last fit-to-extents, used to detect the
     /// post-layout growth that would otherwise leave the sheet clipped.
@@ -670,6 +679,8 @@ final class CanvasView: NSView {
         selectedAnnotation = nil
         measurePoints.removeAll()
         awaitingDimensionLine = false
+        awaitingArcPoint = false
+        arcThrough.removeAll()
         pendingBatch.removeAll()
         pendingBatchViewRect = .zero
         invalidateSheet()
@@ -1588,7 +1599,15 @@ final class CanvasView: NSView {
         var points = measurePoints
         if let hover = measureHover { points.append(hover) }
         guard points.count >= 2 else { return }
-        let viewPoints = points.map { transform.toView($0) }
+        let viewPoints: [CGPoint]
+        if (tool == .continuous || tool == .sideArea), let document {
+            // 预览也要沿已确认的圆弧走；否则点完弧上点后，落图前仍是一根弦。
+            let (dense, _) = densify(points, closed: false, document: document,
+                                     arcThrough: arcThrough, autoDetectArcs: false)
+            viewPoints = dense.map { transform.toView($0) }
+        } else {
+            viewPoints = points.map { transform.toView($0) }
+        }
 
         // 对齐/线性距离标注用与成图一致的“压在几何上的尺寸线 + 斜线”预览，
         // 矩形标注画矩形框，其余工具沿用虚线橡皮筋。颜色统一走

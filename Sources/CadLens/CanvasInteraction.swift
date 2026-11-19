@@ -212,6 +212,11 @@ extension CanvasView {
             finishMeasurement(placement: measureHover)
             return
         }
+        if awaitingArcPoint {
+            // 右键/回车按弦线走：不强制用户一定要选弧上点。
+            awaitingArcPoint = false
+            onPromptChanged?("按弦线连接 · 右键/回车结束")
+        }
         if activeTool != nil || !measurePoints.isEmpty {
             if measurePoints.count >= 2 || activeTool?.requiredPoints == Int.max {
                 finishMeasurement()
@@ -603,6 +608,32 @@ extension CanvasView {
     // MARK: Measurement commit
 
     func handleToolClick(tool: MeasureKind, world: CGPoint, event: NSEvent) {
+        // 连续/侧面积：已经有两个端点，正在等“弧上一点”来确定这段圆弧。
+        // 这一步不能省：圆有两条弧，同半径圆弧也可能不止一条，只靠端点
+        // 无法知道用户要走哪一条。
+        if awaitingArcPoint {
+            guard let document, measurePoints.count >= 2 else {
+                awaitingArcPoint = false
+                return
+            }
+            let arcPoint = constrained(world)
+            let tolerance = max(4 / transform.scale, 1e-9)
+            let start = measurePoints[measurePoints.count - 2]
+            let end = measurePoints[measurePoints.count - 1]
+            if let arc = document.arcPath(from: start, to: end,
+                                          through: arcPoint, tolerance: tolerance) {
+                arcThrough[measurePoints.count - 2] = arcPoint
+                awaitingArcPoint = false
+                measureHover = arcPoint
+                needsDisplay = true
+                onPromptChanged?("圆弧已确定 · 继续下一点 · 右键/回车结束")
+            } else {
+                NSSound.beep()
+                onPromptChanged?("这个点不在圆弧上，请在圆弧上再点一点 · 右键按弦线")
+            }
+            return
+        }
+
         // 第三点：尺寸线位置。这是 DIMALIGNED/DIMLINEAR 和两点量距最直观的
         // 区别——尺寸线跟着光标走，用户自己决定放哪，而不是自动压在墙上。
         // 放置阶段用原始鼠标点，不吸附：吸附只属于被测量的几何点。
@@ -635,9 +666,21 @@ extension CanvasView {
             return
         }
 
+        let previousPoint = measurePoints.last
         measurePoints.append(point)
         measureHover = point
         needsDisplay = true
+
+        // 连续/侧面积：如果这段两端点落在圆弧上，先要求用户点弧上一点
+        // 确定是哪条弧。直线段不会触发这个分支。
+        if (tool == .continuous || tool == .sideArea), let previousPoint,
+           let document,
+           document.arcPath(from: previousPoint, to: point,
+                            tolerance: max(4 / transform.scale, 1e-9)) != nil {
+            awaitingArcPoint = true
+            onPromptChanged?("检测到圆弧：请在圆弧上任意点一点确定圆弧 · 右键按弦线")
+            return
+        }
 
         // 对齐/线性：第二点之后不急着落标注，先进入“放置尺寸线”阶段。
         if (tool == .aligned || tool == .linear), measurePoints.count == 2 {
@@ -661,17 +704,20 @@ extension CanvasView {
             measurePoints.removeAll()
             return
         }
+        let selectedArcs = arcThrough
         defer {
             measurePoints.removeAll()
             measureHover = nil
             awaitingDimensionLine = false
+            awaitingArcPoint = false
+            arcThrough.removeAll()
             needsDisplay = true
             onPromptChanged?(activeTool.map { prompt(for: $0) } ?? "")
         }
         guard measurePoints.count >= 2 else { return }
 
         if tool == .sideArea {
-            promptForHeight()
+            promptForHeight(arcThrough: selectedArcs)
             return
         }
 
@@ -686,7 +732,8 @@ extension CanvasView {
             annotation.value = max(abs(measurePoints[1].x - measurePoints[0].x),
                                    abs(measurePoints[1].y - measurePoints[0].y))
         case .continuous:
-            let (path, lengths) = densify(measurePoints, closed: false, document: document)
+            let (path, lengths) = densify(measurePoints, closed: false, document: document,
+                                          arcThrough: selectedArcs, autoDetectArcs: false)
             annotation.path = path
             annotation.segmentLengths = lengths
             annotation.value = lengths.reduce(0, +)
@@ -785,6 +832,8 @@ extension CanvasView {
 
     func cancelMeasurement() {
         awaitingDimensionLine = false
+        awaitingArcPoint = false
+        arcThrough.removeAll()
         if !measurePoints.isEmpty {
             measurePoints.removeAll()
             measureHover = nil
@@ -795,11 +844,13 @@ extension CanvasView {
         }
     }
 
-    private func promptForHeight() {
+    private func promptForHeight(arcThrough selectedArcs: [Int: CGPoint] = [:]) {
         guard let document, measurePoints.count >= 2 else { return }
         // 侧面积的长度是这一串点连起来的长度，不是首末两点的直线距离——三段
-        // 折起来的一面墙，用直线距离会少算一个转角。
-        let (wallPath, wallLengths) = densify(measurePoints, closed: false, document: document)
+        // 折起来的一面墙，用直线距离会少算一个转角。圆弧段优先使用用户补的
+        // 弧上点，保证展开路径和图上那条弧一致。
+        let (wallPath, wallLengths) = densify(measurePoints, closed: false, document: document,
+                                               arcThrough: selectedArcs, autoDetectArcs: false)
         let length = wallLengths.reduce(0) { $0 + CGFloat($1) }
         let alert = NSAlert()
         alert.messageText = "输入侧面积高度"
@@ -930,7 +981,8 @@ extension CanvasView {
     /// 只对多点工具（连续、多边形、侧面积）有意义：单段尺寸本来就该是一根直
     /// 线，弧长有专门的弧长工具。展开后 points 保持原样（编辑、命中判定还按
     /// 用户点的那些点），path 只用于绘制和算值。
-    func densify(_ points: [CGPoint], closed: Bool, document: CadDocument)
+    func densify(_ points: [CGPoint], closed: Bool, document: CadDocument,
+                 arcThrough: [Int: CGPoint] = [:], autoDetectArcs: Bool = true)
         -> ([CGPoint], [Double]) {
         guard points.count >= 2 else { return (points, []) }
         let tolerance = max(4 / transform.scale, 1e-9)
@@ -940,7 +992,11 @@ extension CanvasView {
         for index in 0..<pairs {
             let a = points[index]
             let b = points[(index + 1) % points.count]
-            if let arc = document.arcPath(from: a, to: b, tolerance: tolerance) {
+            let through = arcThrough[index]
+            let shouldUseArc = through != nil || autoDetectArcs
+            if shouldUseArc,
+               let arc = document.arcPath(from: a, to: b, through: through,
+                                          tolerance: tolerance) {
                 path.append(contentsOf: arc.dropFirst())
                 lengths.append(Double(MeasurementMath.pathLength(arc, closed: false)))
             } else {
