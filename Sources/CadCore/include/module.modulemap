@@ -1,0 +1,4 @@
+module CadCore {
+    umbrella header "cadcore.h"
+    export *
+}

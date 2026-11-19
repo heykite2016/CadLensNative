@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CadLens · Liquid Glass 界面设计</title>
+<style>
+  :root{
+    --ink:#1d1d1f;
+    --ink-2:#5b5b60;
+    --ink-3:#8a8a8f;
+    --board:#f2f2f4;
+    --card:#ffffff;
+    --hair:rgba(0,0,0,.09);
+    --accent:#2f6bff;
+    --radius-xl:28px;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--board);}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{max-width:1240px;margin:0 auto;padding:56px 32px 96px;}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+  h1{font-size:34px;line-height:1.2;font-weight:600;margin:0 0 14px;letter-spacing:-.01em}
+  .lede{font-size:15px;line-height:1.7;color:var(--ink-2);max-width:760px;margin:0 0 8px}
+  .rule{height:1px;background:var(--hair);margin:44px 0 32px}
+  h2{font-size:20px;font-weight:600;margin:0 0 6px}
+  h3{font-size:14px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13px;color:var(--ink-2);line-height:1.7;margin:0 0 20px}
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .card{background:var(--card);border-radius:var(--radius-lg);padding:20px 22px;border:1px solid var(--hair)}
+  .card p{margin:6px 0 0;font-size:13px;line-height:1.6;color:var(--ink-2)}
+  .card .k{font-size:12px;color:var(--ink-3);margin:0}
+
+  /* ---------- glass ---------- */
+  .glass{
+    background:linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.07));
+    -webkit-backdrop-filter:blur(30px) saturate(180%);
+    backdrop-filter:blur(30px) saturate(180%);
+    border:1px solid rgba(255,255,255,.20);
+    box-shadow:
+      0 22px 60px rgba(0,0,0,.42),
+      0 2px 8px rgba(0,0,0,.22),
+      inset 0 1px 0 rgba(255,255,255,.52),
+      inset 0 -1px 0 rgba(0,0,0,.14);
+    position:relative;
+  }
+  .glass::after{
+    content:"";
+    position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:radial-gradient(120% 80% at 12% 0%,rgba(255,255,255,.30),rgba(255,255,255,0) 46%);
+    mix-blend-mode:screen;opacity:.9;
+  }
+  .glass.light{
+    background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.50));
+    border-color:rgba(255,255,255,.75);
+    box-shadow:
+      0 20px 50px rgba(24,26,33,.20),
+      inset 0 1px 0 rgba(255,255,255,.95),
+      inset 0 -1px 0 rgba(0,0,0,.06);
+  }
+
+  /* ---------- window frame ---------- */
+  .win{
+    position:relative;overflow:hidden;border-radius:22px;
+    box-shadow:0 40px 90px rgba(16,18,24,.34),0 4px 14px rgba(16,18,24,.18);
+    isolation:isolate;
+    margin:0 0 18px;
+  }
+  .canvas{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(140% 120% at 50% 0%,#181b20 0%,#0b0c0e 62%,#07080a 100%);
+  }
+  .canvas.lightpaper{
+    background:
+      radial-gradient(140% 120% at 50% 0%,#ffffff 0%,#f4f5f7 60%,#e9ebef 100%);
+  }
+  .canvas svg{position:absolute;inset:0;width:100%;height:100%}
+
+  /* toolbar */
+  .traffic{position:absolute;top:18px;left:18px;display:flex;gap:8px;align-items:center;
+    padding:9px 13px;border-radius:999px;}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .toolbar{
+    position:absolute;top:16px;left:112px;right:16px;height:56px;border-radius:18px;
+    display:flex;align-items:center;padding:0 10px;gap:2px;
+    color:#f2f4f8;font-size:11px;
+  }
+  .tb-item{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:46px;height:44px;border-radius:11px;gap:3px;opacity:.92}
+  .tb-item svg{width:17px;height:17px}
+  .tb-item .lbl{font-size:9.5px;letter-spacing:.01em;opacity:.9;white-space:nowrap}
+  .tb-item.on{background:rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+  .tb-sep{width:1px;height:26px;background:rgba(255,255,255,.16);margin:0 8px}
+  .tabs{display:flex;align-items:center;gap:6px;margin-left:12px}
+  .tab{padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.12);
+    font-size:11px;display:flex;align-items:center;gap:8px;color:#fff;opacity:.85}
+  .tab.on{background:rgba(255,255,255,.24);opacity:1;box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  .tab .x{opacity:.6;font-size:11px}
+  .grow{flex:1}
+
+  /* left rail */
+  .rail{
+    position:absolute;left:16px;top:92px;width:118px;border-radius:18px;padding:10px 8px;
+    color:#eef1f6;font-size:11px;
+  }
+  .rail h4{margin:10px 8px 5px;font-size:9.5px;font-weight:600;letter-spacing:.12em;
+    color:rgba(255,255,255,.52);text-transform:none}
+  .rail .row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:9px;
+    opacity:.9}
+  .rail .row svg{width:15px;height:15px;opacity:.9}
+  .rail .row.on{background:rgba(47,107,255,.85);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),
+    0 6px 16px rgba(47,107,255,.35);opacity:1}
+  .rail .row .key{margin-left:auto;font-size:9px;opacity:.45}
+  .rail .div{height:1px;background:rgba(255,255,255,.12);margin:8px 6px}
+  .rail.light{color:#2c3140}
+  .rail.light h4{color:#8a8a8f}
+  .rail.light .row{opacity:.95}
+  .rail.light .row.on{background:#2f6bff;color:#fff}
+  .rail.light .div{background:rgba(0,0,0,.08)}
+  .rail.light .row .key{opacity:.5}
+
+  /* sidebar */
+  .side{position:absolute;right:16px;top:92px;bottom:96px;width:272px;border-radius:18px;
+    color:#eef1f6;display:flex;flex-direction:column;overflow:hidden}
+  .side .head{padding:14px 14px 10px;display:flex;align-items:center;gap:10px}
+  .side .head .t{font-size:12px;font-weight:600}
+  .search{margin:0 12px 10px;height:30px;border-radius:9px;background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:8px;padding:0 9px;
+    font-size:11px;color:rgba(255,255,255,.55)}
+  .seg{display:flex;background:rgba(255,255,255,.09);border-radius:9px;padding:2px;margin:0 12px 10px}
+  .seg .s{flex:1;text-align:center;font-size:11px;padding:5px 0;border-radius:7px;color:rgba(255,255,255,.68)}
+  .seg .s.on{background:rgba(255,255,255,.22);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+  .lyr{display:flex;align-items:center;gap:9px;height:31px;padding:0 14px;font-size:11.5px;
+    color:rgba(255,255,255,.86)}
+  .lyr .chip{width:9px;height:9px;border-radius:3px;flex:none}
+  .lyr .nm{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .lyr .ico{opacity:.42;font-size:10px}
+  .lyr.hi{background:rgba(255,255,255,.12)}
+  .side .foot{margin-top:auto;padding:10px 14px 12px;border-top:1px solid rgba(255,255,255,.10);
+    font-size:10.5px;color:rgba(255,255,255,.5);display:flex;justify-content:space-between}
+
+  /* command + status */
+  .cmd{position:absolute;left:150px;right:304px;bottom:58px;height:38px;border-radius:13px;
+    display:flex;align-items:center;gap:10px;padding:0 12px;color:#eaf0ff;font-size:12px}
+  .cmd .prompt{color:#7ea6ff;font-weight:600}
+  .caret{width:1.5px;height:15px;background:#9dbcff;animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .cmd .hint{margin-left:auto;font-size:10.5px;color:rgba(255,255,255,.45)}
+  .status{position:absolute;left:150px;right:16px;bottom:14px;height:32px;display:flex;gap:8px;
+    align-items:center;color:#e9eef8;font-size:10.5px}
+  .pill{padding:6px 10px;border-radius:9px;background:rgba(255,255,255,.11);
+    border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px)}
+  .pill.on{background:rgba(47,107,255,.78);border-color:rgba(140,175,255,.55);color:#fff}
+  .coord{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.8}
+
+  /* floating suggestions above the command bar */
+  .sugg{position:absolute;left:150px;bottom:104px;width:290px;border-radius:14px;overflow:hidden;
+    color:#e9eef8;font-size:11.5px}
+  .sugg .r{display:flex;align-items:center;gap:10px;padding:8px 11px}
+  .sugg .r.on{background:rgba(255,255,255,.14)}
+  .sugg .r .a{font-family:"SF Mono",ui-monospace,monospace;font-size:10px;color:#8fb2ff;width:34px}
+  .sugg .r .d{margin-left:auto;font-size:10px;color:rgba(255,255,255,.45)}
+
+  /* section labels */
+  .cap{display:flex;align-items:baseline;gap:10px;margin:26px 0 10px}
+  .cap b{font-size:13px;font-weight:600}
+  .cap span{font-size:12px;color:var(--ink-3)}
+
+  /* spec table */
+  .spec{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card);
+    border-radius:var(--radius-md);overflow:hidden}
+  .spec th,.spec td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--hair)}
+  .spec th{font-weight:600;font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
+  .spec tr:last-child td{border-bottom:0}
+  .spec td.v{font-family:"SF Mono",ui-monospace,monospace;font-size:11.5px;color:var(--ink-2)}
+
+  .swatches{display:flex;gap:10px;flex-wrap:wrap}
+  .sw{width:96px}
+  .sw .box{height:52px;border-radius:12px;border:1px solid var(--hair)}
+  .sw .nm{font-size:11px;margin-top:6px}
+  .sw .hex{font-size:10px;color:var(--ink-3);font-family:"SF Mono",ui-monospace,monospace}
+
+  .q{background:#fff;border:1px solid var(--hair);border-radius:var(--radius-lg);padding:18px 20px;
+    font-size:13px;line-height:1.75;color:var(--ink-2)}
+  .q b{color:var(--ink)}
+  .foot{margin-top:56px;font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between}
+
+  /* settings / print / help frames use light glass on a photo-like backdrop */
+  .sheet-bg{position:absolute;inset:0;background:
+    radial-gradient(90% 70% at 20% 10%,#e9edf5 0%,#dfe4ee 45%,#cfd6e4 100%)}
+  .sheet-bg.cool{background:radial-gradient(90% 70% at 20% 10%,#eef2f8 0%,#dde3ee 55%,#c9d1e0 100%)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">CadLens · 界面重设计 · 方案 A</p>
+  <h1>Liquid Glass 玻璃材质界面</h1>
+  <p class="lede">把所有界面从「不透明工具条 + 侧栏」改成浮在图纸上的玻璃层：图纸铺满整窗，工具、图层、命令行、状态都以半透明材质浮在它上面。玻璃只做界面，不挡线条——这是设计的底线。</p>
+  <p class="lede" style="margin-top:10px">下面四张是重设计后的窗口：主窗口（深色画布）、主窗口（浅色画布 + 侧栏）、设置、打印预览、使用说明。请先看形态与材质，确认后我再动代码。</p>
+
+  <div class="rule"></div>
+
+  <h2>一 · 主窗口（深色画布）</h2>
+  <p class="sub">顶部一条玻璃岛（红绿灯 + 图纸标签 + 常用命令），左侧工具竖排、右侧图层/标注面板、底部命令行与状态条全部改为浮层。图纸从窗口左边缘一直铺到右边缘，没有任何一条不透明的横栏截断它。</p>
+
+  <div class="win" style="height:742px">
+    <div class="canvas">
+      <svg viewBox="0 0 1160 742" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+            <path d="M42 0H0V42" fill="none" stroke="rgba(255,255,255,.035)" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="1160" height="742" fill="url(#grid)"/>
+
+        <!-- axis lines -->
+        <g stroke="#b34ddb" stroke-width="1" stroke-dasharray="14 8 2 8" opacity=".8">
+          <path d="M238 92V690"/><path d="M560 92V690"/><path d="M884 92V690"/>
+          <path d="M180 210H1010"/><path d="M180 520H1010"/>
+        </g>
+        <g fill="none" stroke="#b34ddb" stroke-width="1">
+          <circle cx="238" cy="92" r="13"/><circle cx="560" cy="92" r="13"/><circle cx="884" cy="92" r="13"/>
+        </g>
+        <g fill="#d79bf0" font-family="SF Mono,monospace" font-size="12" text-anchor="middle">
+          <text x="238" y="97">A</text><text x="560" y="97">B</text><text x="884" y="97">C</text>
+        </g>
+
+        <!-- walls -->
+        <g fill="none" stroke="#f2f4f8" stroke-width="2.4" stroke-linejoin="miter">
+          <rect x="300" y="250" width="520" height="360"/>
+          <path d="M300 400H520"/><path d="M520 250V470"/>
+          <path d="M640 470H820"/><path d="M640 400H820"/>
+          <path d="M520 560V610"/>
+        </g>
+        <g fill="none" stroke="#f2f4f8" stroke-width="1.2" opacity=".85">
+          <rect x="330" y="280" width="150" height="96"/>
+          <rect x="700" y="280" width="90" height="96"/>
+          <rect x="330" y="430" width="70" height="150"/>
+          <rect x="700" y="500" width="90" height="80"/>
+        </g>
+        <!-- door arcs -->
+        <g fill="none" stroke="#8fd3a6" stroke-width="1.1" opacity=".9">
+          <path d="M520 470a58 58 0 0 1 58-58"/>
+          <path d="M820 400a46 46 0 0 0-46 46"/>
+          <path d="M470 250a50 50 0 0 1 50 50"/>
+        </g>
+        <!-- columns -->
+        <g fill="#f2f4f8" opacity=".9">
+          <rect x="292" y="244" width="16" height="16"/><rect x="812" y="244" width="16" height="16"/>
+          <rect x="292" y="600" width="16" height="16"/><rect x="812" y="600" width="16" height="16"/>
+        </g>
+        <!-- hatch -->
+        <g stroke="rgba(255,255,255,.12)" stroke-width="1">
+          <path d="M330 430l70 0M330 450l70 0M330 470l70 0M330 490l70 0M330 510l70 0M330 530l70 0M330 550l70 0M330 570l70 0"/>
+        </g>
+        <!-- existing dimensions -->
+        <g stroke="#7ce38b" stroke-width=".9" fill="none">
+          <path d="M300 214H820"/>
+          <path d="M300 208v12M820 208v12"/>
+          <path d="M300 250v-30M820 250v-30" stroke-width=".7"/>
+          <path d="M300 640H520"/><path d="M520 640H640"/><path d="M640 640H820"/>
+          <path d="M300 634v12M520 634v12M640 634v12M820 634v12"/>
+          <path d="M868 250V400"/><path d="M868 400V610"/>
+          <path d="M862 250h12M862 400h12M862 610h12"/>
+        </g>
+        <g fill="#7ce38b" font-family="SF Mono,monospace" font-size="11" text-anchor="middle">
+          <text x="560" y="207">10200</text>
+          <text x="410" y="634">4870</text>
+          <text x="580" y="634">2620</text>
+          <text x="730" y="634">4080</text>
+          <text x="884" y="330" transform="rotate(90 884 330)">3400</text>
+          <text x="884" y="510" transform="rotate(90 884 510)">4200</text>
+        </g>
+        <!-- 现场标注（本次演示的玻璃态标注，绿色细线） -->
+        <g stroke="#7ce38b" stroke-width="1" fill="none">
+          <path d="M330 430H400"/><path d="M470 430H520"/>
+          <path d="M325 424l10 12M520 424l-10 12"/>
+        </g>
+        <text x="435" y="434" fill="#7ce38b" font-family="SF Mono,monospace" font-size="11" text-anchor="middle">1470</text>
+        <g fill="#7ce38b" font-family="SF Mono,monospace" font-size="12" text-anchor="middle">
+          <text x="405" y="330">S = 11.92m²</text>
+          <text x="405" y="348" text-anchor="start">C = 14384mm</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="glass traffic">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+    </div>
+
+    <div class="glass toolbar">
+      <div class="tabs" style="margin:0 6px 0 2px">
+        <div class="tab on">4#楼结构平面布置图.dwg <span class="x">×</span></div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7V5h6l2 2h8v12H3z"/></svg>
+        <span class="lbl">打开</span>
+      </div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 9V4h9v5M7 17H5v-6h14v6h-2"/><rect x="7" y="14" width="10" height="6"/></svg>
+        <span class="lbl">打印</span>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 7H5v10h4"/><path d="M5 12h11a4 4 0 0 1 0 8h-2"/></svg>
+        <span class="lbl">撤销</span>
+      </div>
+      <div class="tb-item" style="opacity:.42">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 7h4v10h-4"/><path d="M19 12H8a4 4 0 0 0 0 8h2"/></svg>
+        <span class="lbl">重做</span>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12"/></svg>
+        <span class="lbl">删除</span>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3l11 9-5 1 2 6-3 1-2-6-3 4z"/></svg>
+        <span class="lbl">选择</span>
+      </div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-2-3a1.6 1.6 0 0 1 2.6-1.8L8 14"/></svg>
+        <span class="lbl">平移</span>
+      </div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/><path d="M9 9h6v6H9z"/></svg>
+        <span class="lbl">窗口</span>
+      </div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="lbl">全图</span>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></svg>
+        <span class="lbl">图层</span>
+      </div>
+      <div class="tb-item on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 17L20 7"/><path d="M17 6l4-1-1 4M7 18l-4 1 1-4"/></svg>
+        <span class="lbl">标注</span>
+      </div>
+      <div class="grow"></div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        <span class="lbl">设置</span>
+      </div>
+      <div class="tb-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.2 2.4c-.6.2-.9.8-.9 1.4v.4"/><circle cx="12" cy="16.8" r=".8" fill="currentColor" stroke="none"/></svg>
+        <span class="lbl">帮助</span>
+      </div>
+    </div>
+
+    <div class="glass rail">
+      <h4>长度</h4>
+      <div class="row on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16L20 8M7 14l-2 4M17 6l2 4"/></svg>对齐<span class="key">AL</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16M6 9l-2 3 2 3M18 9l2 3-2 3"/></svg>线性<span class="key">DLI</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16h6v-8h5v5h5"/><path d="M4 13v6M20 10v6"/></svg>连续<span class="key">DCO</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="12" height="10" rx="1.5"/><rect x="9" y="4" width="12" height="10" rx="1.5"/></svg>批量<span class="key">DBA</span></div>
+      <h4>面积</h4>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1.5" stroke-dasharray="3 3"/></svg>矩形</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4l7 4v8l-7 4-7-4V8z"/></svg>多边形</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>圆面积</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 10l6-6M4 16l10-10M6 20l12-12M12 20l8-8"/></svg>填充</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 20V6h12"/><path d="M6 10h8M6 14h8"/></svg>侧面积</div>
+      <h4>角度与弧长</h4>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 12l6-5"/></svg>半径</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19h16M4 19L16 6"/><path d="M9 19a7 7 0 0 0 1.6-4.4"/></svg>角度</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 17a9 9 0 0 1 16 0"/><path d="M4 14v6M20 14v6"/></svg>弧长</div>
+      <div class="div"></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 5h9a3 3 0 0 1 0 6H8v8"/><path d="M15 15l4 5"/></svg>注释<span class="key">T</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12"/></svg>删除标注</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 18L18 6"/><path d="M4 14v4h4M18 10V6h-4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>校准比例</div>
+    </div>
+
+    <div class="glass side">
+      <div class="head">
+        <span class="t">图纸内容</span>
+        <span style="margin-left:auto;font-size:10.5px;opacity:.55">213 个图层</span>
+      </div>
+      <div class="seg"><div class="s on">图层</div><div class="s">标注</div></div>
+      <div class="search">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
+        搜索图层
+      </div>
+      <div class="lyr hi"><span class="chip" style="background:#ffffff"></span><span class="nm">A-WALL 墙体</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#b34ddb"></span><span class="nm">A-AXIS 轴线</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#7ce38b"></span><span class="nm">A-DIM 尺寸标注</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#ffd166"></span><span class="nm">S-BEAM 梁配筋</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#7fb2ff"></span><span class="nm">S-COLUMN 柱</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr" style="opacity:.42"><span class="chip" style="background:#c9ccd4"></span><span class="nm">A-HATCH 填充</span><span class="ico">◌</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#ff9f6b"></span><span class="nm">A-DOOR 门</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#8ee6ff"></span><span class="nm">A-GLAZ 窗</span><span class="ico">◉</span><span class="ico">⌾</span></div>
+      <div class="lyr"><span class="chip" style="background:#e0e4ea"></span><span class="nm">Defpoints</span><span class="ico">◌</span><span class="ico">⌾</span></div>
+      <div class="foot"><span>可见 210 · 隐藏 3</span><span>全部显示</span></div>
+    </div>
+
+    <div class="glass sugg">
+      <div class="r on"><span class="a">AL</span><span>对齐标注</span><span class="d">两点间实际距离</span></div>
+      <div class="r"><span class="a">DLI</span><span>线性标注</span><span class="d">水平/竖直投影</span></div>
+      <div class="r"><span class="a">DCO</span><span>连续标注</span><span class="d">链式累加</span></div>
+    </div>
+
+    <div class="glass cmd">
+      <span class="prompt">⌘</span>
+      <span>al</span><span class="caret"></span>
+      <span class="hint">Tab 补全 · ↩ 执行 · Esc 取消</span>
+    </div>
+
+    <div class="status">
+      <span class="pill on">捕捉</span>
+      <span class="pill">栅格</span>
+      <span class="pill">正交</span>
+      <span class="pill on">线宽</span>
+      <span class="pill on">标注</span>
+      <span class="pill">单位 mm</span>
+      <span class="pill">1:100</span>
+      <span class="coord">X 10236 · Y 4255</span>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-bottom:26px">要点：① 玻璃只出现在“工具与状态”上，画布区域永远是纯图；② 玻璃的圆角与外框同心（18 → 11 → 7），形成连续曲率的“透镜”；③ 选中态用品牌蓝填充 + 内侧 1px 高光，不做描边；④ 命令行候选浮层与命令行同材质、同圆角，像从输入框里长出来。</p>
+
+  <h2>二 · 主窗口（浅色画布 + 标注面板）</h2>
+  <p class="sub">同一套材质在浅色图纸上自动降低不透明度、改成向下的柔影——玻璃要跟着底下的纸走，而不是固定成深色。右侧切到“标注”页：每条标注一行，带颜色块、数值、图层与跳转。</p>
+
+  <div class="win" style="height:660px">
+    <div class="canvas lightpaper">
+      <svg viewBox="0 0 1160 660" preserveAspectRatio="xMidYMid slice">
+        <g stroke="#c9ced8" stroke-width="1">
+          <path d="M0 64H1160M0 128H1160M0 192H1160M0 256H1160M0 320H1160M0 384H1160M0 448H1160M0 512H1160M0 576H1160"/>
+          <path d="M64 0V640M128 0V640M192 0V640M256 0V640M320 0V640M384 0V640M448 0V640M512 0V640M576 0V640M640 0V640M704 0V640M768 0V640M832 0V640M896 0V640M960 0V640M1024 0V640M1088 0V640"/>
+        </g>
+        <g stroke="#9aa2b0" stroke-width="1" stroke-dasharray="12 7">
+          <path d="M300 96V584"/><path d="M700 96V584"/><path d="M150 220H910"/><path d="M150 470H910"/>
+        </g>
+        <g fill="none" stroke="#2b3140" stroke-width="2.2">
+          <rect x="330" y="170" width="480" height="330"/>
+          <path d="M330 300H520"/><path d="M520 170V380"/><path d="M610 380H810"/><path d="M610 300H810"/>
+        </g>
+        <g fill="none" stroke="#2b3140" stroke-width="1" opacity=".7">
+          <rect x="360" y="200" width="130" height="80"/>
+          <rect x="690" y="200" width="90" height="80"/>
+          <rect x="360" y="330" width="60" height="140"/>
+        </g>
+        <g fill="none" stroke="#3aa76d" stroke-width="1">
+          <path d="M330 140H810"/><path d="M330 134v12M810 134v12"/><path d="M330 170v-24M810 170v-24"/>
+          <path d="M330 530H520M520 530H610M610 530H810"/>
+          <path d="M330 524v12M520 524v12M610 524v12M810 524v12"/>
+        </g>
+        <g fill="#1f8a55" font-family="SF Mono,monospace" font-size="10.5" text-anchor="middle">
+          <text x="570" y="133">7200</text>
+          <text x="425" y="524">2850</text><text x="565" y="524">1350</text><text x="710" y="524">3000</text>
+        </g>
+        <g stroke="#0a84ff" stroke-width="1" fill="none">
+          <path d="M360 200H490"/><path d="M355 194l10 12M490 194l-10 12"/>
+        </g>
+        <text x="425" y="204" fill="#0a7ae8" font-family="SF Mono,monospace" font-size="10.5" text-anchor="middle">1300</text>
+        <g fill="#1f8a55" font-family="SF Mono,monospace" font-size="11.5">
+          <text x="380" y="245">S = 10.50m²</text><text x="380" y="262">C = 13.20m</text>
+          <text x="640" y="410">S = 6.90m²</text><text x="640" y="427">C = 9.31m</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="glass light traffic">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+    </div>
+
+    <div class="glass light toolbar" style="color:#2c3140">
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7V5h6l2 2h8v12H3z"/></svg><span class="lbl">打开</span></div>
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 9V4h9v5M7 17H5v-6h14v6h-2"/><rect x="7" y="14" width="10" height="6"/></svg><span class="lbl">打印</span></div>
+      <div class="tb-sep" style="background:rgba(0,0,0,.10)"></div>
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 7H5v10h4"/><path d="M5 12h11a4 4 0 0 1 0 8h-2"/></svg><span class="lbl">撤销</span></div>
+      <div class="tb-item" style="opacity:.36"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 7h4v10h-4"/><path d="M19 12H8a4 4 0 0 0 0 8h2"/></svg><span class="lbl">重做</span></div>
+      <div class="tb-sep" style="background:rgba(0,0,0,.10)"></div>
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">全图</span></div>
+      <div class="tb-item on" style="background:rgba(47,107,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)"><svg viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="1.7"><path d="M4 17L20 7"/><path d="M17 6l4-1-1 4M7 18l-4 1 1-4"/></svg><span class="lbl" style="color:#2f6bff">标注</span></div>
+      <div class="grow"></div>
+      <div class="tabs">
+        <div class="tab on" style="background:rgba(255,255,255,.85);color:#252a36;box-shadow:inset 0 1px 0 #fff">客房总平面系统图.dwg <span class="x">×</span></div>
+      </div>
+      <div class="tb-sep" style="background:rgba(0,0,0,.10)"></div>
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span class="lbl">设置</span></div>
+      <div class="tb-item" style="opacity:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.2 2.4c-.6.2-.9.8-.9 1.4v.4"/><circle cx="12" cy="16.8" r=".8" fill="currentColor" stroke="none"/></svg><span class="lbl">帮助</span></div>
+    </div>
+
+    <div class="glass light rail">
+      <h4>长度</h4>
+      <div class="row on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16L20 8M7 14l-2 4M17 6l2 4"/></svg>对齐<span class="key">AL</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16M6 9l-2 3 2 3M18 9l2 3-2 3"/></svg>线性<span class="key">DLI</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16h6v-8h5v5h5"/><path d="M4 13v6M20 10v6"/></svg>连续<span class="key">DCO</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="12" height="10" rx="1.5"/><rect x="9" y="4" width="12" height="10" rx="1.5"/></svg>批量<span class="key">DBA</span></div>
+      <h4>面积</h4>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1.5" stroke-dasharray="3 3"/></svg>矩形</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4l7 4v8l-7 4-7-4V8z"/></svg>多边形</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>圆面积</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 10l6-6M4 16l10-10M6 20l12-12M12 20l8-8"/></svg>填充</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 20V6h12"/><path d="M6 10h8M6 14h8"/></svg>侧面积</div>
+      <h4>角度与弧长</h4>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 12l6-5"/></svg>半径</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19h16M4 19L16 6"/><path d="M9 19a7 7 0 0 0 1.6-4.4"/></svg>角度</div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 17a9 9 0 0 1 16 0"/><path d="M4 14v6M20 14v6"/></svg>弧长</div>
+      <div class="div"></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 5h9a3 3 0 0 1 0 6H8v8"/><path d="M15 15l4 5"/></svg>注释<span class="key">T</span></div>
+      <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12"/></svg>删除标注</div>
+    </div>
+
+    <div class="glass light side" style="color:#2c3140">
+      <div class="head"><span class="t">标注</span><span style="margin-left:auto;font-size:10.5px;color:#8a8a8f">6 条</span></div>
+      <div class="seg" style="background:rgba(0,0,0,.06)"><div class="s">图层</div><div class="s on" style="background:#fff;color:#1d1d1f;box-shadow:0 1px 2px rgba(0,0,0,.10)">标注</div></div>
+      <div class="search" style="background:rgba(255,255,255,.7);border-color:rgba(0,0,0,.06);color:#8a8a8f">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>搜索数值、备注
+      </div>
+      <div class="lyr hi" style="background:rgba(47,107,255,.10)">
+        <span class="chip" style="background:#0a84ff"></span>
+        <span class="nm">对齐 · 1300 mm</span>
+        <span class="ico" style="opacity:.6">1F</span>
+      </div>
+      <div class="lyr"><span class="chip" style="background:#1f8a55"></span><span class="nm">矩形 · S 10.50m²</span><span class="ico" style="opacity:.6">1F</span></div>
+      <div class="lyr"><span class="chip" style="background:#1f8a55"></span><span class="nm">矩形 · S 6.90m²</span><span class="ico" style="opacity:.6">1F</span></div>
+      <div class="lyr"><span class="chip" style="background:#1f8a55"></span><span class="nm">连续 · 7200 mm</span><span class="ico" style="opacity:.6">1F</span></div>
+      <div class="lyr"><span class="chip" style="background:#1f8a55"></span><span class="nm">多边形 · S 4.20m²</span><span class="ico" style="opacity:.6">2F</span></div>
+      <div class="lyr"><span class="chip" style="background:#b26a00"></span><span class="nm">注释 · 门口需复核</span><span class="ico" style="opacity:.6">2F</span></div>
+      <div class="foot" style="border-top-color:rgba(0,0,0,.07);color:#8a8a8f"><span>合计 6 条 · 2 层</span><span>导出 CSV</span></div>
+    </div>
+
+    <div class="glass light cmd" style="color:#2c3140">
+      <span class="prompt" style="color:#2f6bff">⌘</span>
+      <span style="color:#8a8a8f">选择工具或输入命令</span><span class="caret" style="background:#2f6bff"></span>
+      <span class="hint" style="color:#9a9aa0">F3 捕捉 · F8 正交 · ⌘Z 撤销</span>
+    </div>
+
+    <div class="status" style="color:#3a3f4b">
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">捕捉</span>
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">栅格</span>
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">正交</span>
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">线宽</span>
+      <span class="pill on">标注</span>
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">单位 m</span>
+      <span class="pill" style="background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)">1:50</span>
+      <span class="coord" style="opacity:.55">X 8.42 · Y 3.16</span>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-bottom:26px">浅色画布下玻璃换一组参数：白色底 72%、边框 0.75 白、下方柔影 20% 黑。文字颜色跟着画布深浅走（深画布白字、浅画布墨字），不做“永远白色”的固定配色——那会在浅色图纸上直接消失。</p>
+
+  <div class="rule"></div>
+
+  <h2>三 · 设置窗口</h2>
+  <p class="sub">设置从独立小窗口改成一张玻璃面板：左边分区（显示 / 标注 / 捕捉 / 画质），右边内容，底部固定操作条。每个开关都是系统原生开关，玻璃只做背景。</p>
+
+  <div class="win" style="height:560px">
+    <div class="sheet-bg"></div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+      <div class="glass light" style="width:860px;height:500px;border-radius:22px;display:flex;overflow:hidden;color:#23262d">
+        <div style="width:186px;padding:18px 10px;border-right:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.28)">
+          <div style="display:flex;gap:8px;align-items:center;padding:0 8px 14px">
+            <div style="width:24px;height:24px;border-radius:7px;background:#2f6bff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px">C</div>
+            <div style="font-size:12.5px;font-weight:600">设置</div>
+          </div>
+          <div style="padding:7px 9px;border-radius:9px;background:rgba(47,107,255,.13);color:#2f6bff;font-size:12px;margin-bottom:3px">显示</div>
+          <div style="padding:7px 9px;border-radius:9px;font-size:12px;color:#4b5058;margin-bottom:3px">标注</div>
+          <div style="padding:7px 9px;border-radius:9px;font-size:12px;color:#4b5058;margin-bottom:3px">对象捕捉</div>
+          <div style="padding:7px 9px;border-radius:9px;font-size:12px;color:#4b5058">画质与性能</div>
+          <div style="margin-top:120px;padding:0 9px;font-size:10.5px;color:#8a8a8f;line-height:1.6">CadLens 1.8<br>macOS 12+</div>
+        </div>
+        <div style="flex:1;padding:18px 22px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+            <div style="font-size:15px;font-weight:600">显示</div>
+            <div style="font-size:11px;color:#8a8a8f">单位、精度与画布外观</div>
+          </div>
+
+          <div style="display:flex;align-items:center;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+            <div style="flex:1">
+              <div style="font-size:12.5px">长度单位</div>
+              <div style="font-size:11px;color:#8a8a8f;margin-top:2px">图上数值的换算基准</div>
+            </div>
+            <div style="display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px">
+              <div style="padding:5px 12px;border-radius:7px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.10);font-size:11.5px">mm</div>
+              <div style="padding:5px 12px;font-size:11.5px;color:#6d727b">cm</div>
+              <div style="padding:5px 12px;font-size:11.5px;color:#6d727b">m</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+            <div style="flex:1">
+              <div style="font-size:12.5px">面积单位</div>
+              <div style="font-size:11px;color:#8a8a8f;margin-top:2px">面积标注与侧栏合计共用</div>
+            </div>
+            <div style="display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px">
+              <div style="padding:5px 12px;border-radius:7px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.10);font-size:11.5px">m²</div>
+              <div style="padding:5px 12px;font-size:11.5px;color:#6d727b">ft²</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+            <div style="flex:1"><div style="font-size:12.5px">小数位数</div></div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:26px;height:26px;border-radius:8px;background:rgba(0,0,0,.05);text-align:center;line-height:26px;font-size:13px">−</div>
+              <div style="font-size:12.5px;width:18px;text-align:center" class="mono">0</div>
+              <div style="width:26px;height:26px;border-radius:8px;background:rgba(0,0,0,.05);text-align:center;line-height:26px;font-size:13px">+</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;padding:13px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+            <div style="flex:1">
+              <div style="font-size:12.5px">画布外观</div>
+              <div style="font-size:11px;color:#8a8a8f;margin-top:2px">界面深浅跟随画布</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <div style="width:46px;height:30px;border-radius:8px;background:#101215;border:2px solid #2f6bff"></div>
+              <div style="width:46px;height:30px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.12)"></div>
+              <div style="width:46px;height:30px;border-radius:8px;background:linear-gradient(90deg,#101215 50%,#fff 50%);border:1px solid rgba(0,0,0,.12)"></div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;padding:13px 0">
+            <div style="flex:1">
+              <div style="font-size:12.5px">标注文字高度</div>
+              <div style="font-size:11px;color:#8a8a8f;margin-top:2px">跟随图纸尺寸文字 · 当前 300 mm（图上同高）</div>
+            </div>
+            <div style="display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px">
+              <div style="padding:5px 12px;border-radius:7px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.10);font-size:11.5px">跟随图纸</div>
+              <div style="padding:5px 12px;font-size:11.5px;color:#6d727b">固定字号</div>
+            </div>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:12px;border-top:1px solid rgba(0,0,0,.06)">
+            <div style="font-size:11px;color:#8a8a8f">修改即时生效</div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <div style="padding:7px 14px;border-radius:9px;font-size:12px;color:#4b5058;background:rgba(0,0,0,.05)">恢复默认</div>
+              <div style="padding:7px 16px;border-radius:9px;font-size:12px;color:#fff;background:#2f6bff;box-shadow:0 6px 16px rgba(47,107,255,.35)">完成</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:34px">四 · 打印预览</h2>
+  <p class="sub">打印预览改成“纸张在工作台上”的形态：左侧玻璃页栏（缩略图 + 页码），中间白纸带真实投影，右侧玻璃检视器管纸张与比例。这比现在整块不透明面板更接近 macOS 的原生文档预览。</p>
+
+  <div class="win" style="height:470px">
+    <div class="sheet-bg cool"></div>
+    <div style="position:absolute;inset:0;padding:18px;display:flex;gap:14px">
+      <div class="glass light" style="width:150px;border-radius:16px;padding:10px;color:#2c3140">
+        <div style="font-size:11px;color:#8a8a8f;padding:2px 4px 8px">15 页 · 按图框出页</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="border-radius:6px;background:#fff;height:66px;border:2px solid #2f6bff;box-shadow:0 4px 10px rgba(0,0,0,.10);position:relative"><span style="position:absolute;left:3px;top:2px;font-size:8px;color:#2f6bff">1</span></div>
+          <div style="border-radius:6px;background:#fff;height:66px;border:1px solid rgba(0,0,0,.10)"></div>
+          <div style="border-radius:6px;background:#fff;height:66px;border:1px solid rgba(0,0,0,.10)"></div>
+          <div style="border-radius:6px;background:#fff;height:66px;border:1px solid rgba(0,0,0,.10)"></div>
+          <div style="border-radius:6px;background:#fff;height:66px;border:1px solid rgba(0,0,0,.10)"></div>
+          <div style="border-radius:6px;background:#fff;height:66px;border:1px solid rgba(0,0,0,.10)"></div>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;align-items:center;justify-content:center">
+        <div style="width:560px;height:390px;background:#fff;border-radius:3px;box-shadow:0 26px 60px rgba(20,24,34,.26),0 2px 6px rgba(20,24,34,.12);position:relative;padding:22px">
+          <svg viewBox="0 0 520 350" style="width:100%;height:100%">
+            <rect x="4" y="4" width="512" height="342" fill="none" stroke="#c8ccd6" stroke-width="1"/>
+            <g fill="none" stroke="#2b3140" stroke-width="1.6"><rect x="60" y="70" width="300" height="200"/><path d="M60 160H210M210 70V220M280 220H360M280 160H360"/></g>
+            <g fill="none" stroke="#3aa76d" stroke-width=".8"><path d="M60 52H360"/><path d="M60 46v10M360 46v10"/><path d="M60 280H210M210 280H280M280 280H360"/><path d="M60 274v10M210 274v10M280 274v10M360 274v10"/></g>
+            <g fill="#1f8a55" font-family="SF Mono,monospace" font-size="8" text-anchor="middle"><text x="210" y="45">7200</text><text x="135" y="274">2850</text><text x="245" y="274">1350</text><text x="320" y="274">3000</text></g>
+            <g fill="none" stroke="#2b3140" stroke-width="1"><rect x="380" y="70" width="110" height="200"/><path d="M380 130h110M380 190h110"/></g>
+            <text x="435" y="290" fill="#5b6270" font-family="SF Pro Text,PingFang SC" font-size="7" text-anchor="middle">一层结构平面布置图 1:100</text>
+            <rect x="380" y="300" width="110" height="36" fill="none" stroke="#c8ccd6"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="glass light" style="width:212px;border-radius:16px;padding:14px;color:#2c3140">
+        <div style="font-size:12px;font-weight:600;margin-bottom:12px">输出</div>
+        <div style="font-size:11px;color:#8a8a8f;margin-bottom:5px">纸张</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:8px 10px;border-radius:9px;background:rgba(0,0,0,.05);margin-bottom:10px">A1 841 × 594 mm<span style="color:#9a9aa0">▾</span></div>
+        <div style="font-size:11px;color:#8a8a8f;margin-bottom:5px">比例</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:8px 10px;border-radius:9px;background:rgba(0,0,0,.05);margin-bottom:10px">1 : 100<span style="color:#9a9aa0">▾</span></div>
+        <div style="font-size:11px;color:#8a8a8f;margin-bottom:5px">页边距</div>
+        <div style="height:4px;border-radius:2px;background:rgba(0,0,0,.10);margin:10px 2px 18px;position:relative">
+          <div style="position:absolute;left:0;top:0;height:4px;width:38%;border-radius:2px;background:#2f6bff"></div>
+          <div style="position:absolute;left:38%;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.22)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8a8f;margin-bottom:16px"><span>5 mm</span><span>20 mm</span></div>
+        <div style="padding:9px 0;border-radius:9px;text-align:center;font-size:12px;background:#2f6bff;color:#fff;box-shadow:0 8px 18px rgba(47,107,255,.30);margin-bottom:8px">打印</div>
+        <div style="padding:9px 0;border-radius:9px;text-align:center;font-size:12px;background:rgba(0,0,0,.05);color:#4b5058">导出 PDF</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:34px">五 · 使用说明</h2>
+  <p class="sub">说明窗口是一张可搜索的玻璃卡片：左栏八节，右侧正文，快捷键用等宽字标注。原来那种滚动大白页在深色画布旁边像一块广告牌。</p>
+
+  <div class="win" style="height:430px">
+    <div class="sheet-bg"></div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+      <div class="glass light" style="width:780px;height:360px;border-radius:20px;display:flex;overflow:hidden;color:#23262d">
+        <div style="width:170px;border-right:1px solid rgba(0,0,0,.06);padding:14px 8px;background:rgba(255,255,255,.30)">
+          <div style="font-size:12px;font-weight:600;padding:0 10px 10px">使用说明</div>
+          <div style="font-size:11.5px;padding:7px 10px;border-radius:8px;background:rgba(47,107,255,.13);color:#2f6bff">快速开始</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">打开图纸</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">测量长度与面积</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">对象捕捉</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">标注样式</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">打印与导出</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">快捷键</div>
+          <div style="font-size:11.5px;padding:7px 10px;color:#4b5058">常见问题</div>
+        </div>
+        <div style="flex:1;padding:18px 22px;color:#2c3140">
+          <div style="font-size:14px;font-weight:600;margin-bottom:10px">快速开始</div>
+          <div style="font-size:12px;line-height:1.85;color:#4b5058">
+            打开一张 DWG/DXF，按 <span class="mono" style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:5px;font-size:11px">⌘O</span> 选择文件；图纸会按作者保存的视图摆放。<br>
+            左侧工具决定“点几下定一条标注”，标注完成即退出工具；再点一次工具画下一条。
+          </div>
+          <div style="display:flex;gap:10px;margin:16px 0">
+            <div style="flex:1;background:rgba(47,107,255,.08);border-radius:10px;padding:10px 12px">
+              <div style="font-size:11px;color:#2f6bff;margin-bottom:3px">对齐标注</div>
+              <div style="font-size:11.5px;color:#4b5058">点两点，尺寸线压在两点连线上</div>
+            </div>
+            <div style="flex:1;background:rgba(0,0,0,.04);border-radius:10px;padding:10px 12px">
+              <div style="font-size:11px;color:#6d727b;margin-bottom:3px">批量标注</div>
+              <div style="font-size:11.5px;color:#4b5058">框选一片墙线，一次出齐</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#8a8a8f;margin-bottom:6px">常用快捷键</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:11.5px;color:#4b5058">
+            <div style="display:flex;justify-content:space-between"><span>对象捕捉</span><span class="mono" style="color:#6d727b">F3</span></div>
+            <div style="display:flex;justify-content:space-between"><span>正交</span><span class="mono" style="color:#6d727b">F8</span></div>
+            <div style="display:flex;justify-content:space-between"><span>显示全图</span><span class="mono" style="color:#6d727b">0</span></div>
+            <div style="display:flex;justify-content:space-between"><span>删除标注</span><span class="mono" style="color:#6d727b">⌫</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2>六 · 材质与尺寸规格</h2>
+  <p class="sub">所有玻璃共用一套令牌，改一处则全窗口一致。数值按 Retina 屏 2× 设计，符号在 1× 屏也不发虚。</p>
+
+  <table class="spec">
+    <tr><th style="width:190px">令牌</th><th style="width:230px">值</th><th>用法</th></tr>
+    <tr><td>玻璃填充（深画布）</td><td class="v">白 17% → 7%（线性）</td><td>工具条、侧栏、命令行、状态胶囊</td></tr>
+    <tr><td>玻璃填充（浅画布）</td><td class="v">白 72% → 50%</td><td>同上，浅色图纸上自动切换</td></tr>
+    <tr><td>背板模糊</td><td class="v">blur 30px · saturate 180%</td><td>让图纸透出，但不干扰读数</td></tr>
+    <tr><td>外描边</td><td class="v">1px · 白 20%（浅：白 75%）</td><td>玻璃的“边缘”，不用阴影代替</td></tr>
+    <tr><td>内高光</td><td class="v">inset 0 1px 0 · 白 52%</td><td>顶部一道镜面，玻璃的厚度感</td></tr>
+    <tr><td>投影</td><td class="v">0 22px 60px · 黑 42%</td><td>只给浮层，画布内元素不投影</td></tr>
+    <tr><td>圆角</td><td class="v">22 / 18 / 14 / 11 / 9</td><td>窗口 → 面板 → 分组 → 按钮 → 胶囊</td></tr>
+    <tr><td>间距</td><td class="v">16 外边距 · 8 组内 · 2 图标</td><td>浮层之间用 8 的倍数对齐</td></tr>
+    <tr><td>字号</td><td class="v">26 标题 · 12.5 正文 · 11 辅助 · 10 标签</td><td>与系统 UI 一致，不用小字号硬塞</td></tr>
+    <tr><td>选中态</td><td class="v">#2F6BFF 88% + 内高光</td><td>工具、页签、状态开关</td></tr>
+  </table>
+
+  <div class="cap" style="margin-top:30px"><b>品牌与语义色</b><span>只在需要“做出判断”的地方出现颜色</span></div>
+  <div class="swatches">
+    <div class="sw"><div class="box" style="background:#2f6bff"></div><div class="nm">品牌蓝 · 选中</div><div class="hex">#2F6BFF</div></div>
+    <div class="sw"><div class="box" style="background:#7ce38b"></div><div class="nm">标注墨（深画布）</div><div class="hex">#7CE38B</div></div>
+    <div class="sw"><div class="box" style="background:#1f8a55"></div><div class="nm">标注墨（浅画布）</div><div class="hex">#1F8A55</div></div>
+    <div class="sw"><div class="box" style="background:#ff5f57"></div><div class="nm">删除</div><div class="hex">#FF5F57</div></div>
+    <div class="sw"><div class="box" style="background:#febc2e"></div><div class="nm">待确认</div><div class="hex">#FEBC2E</div></div>
+    <div class="sw"><div class="box" style="background:#101215"></div><div class="nm">深画布</div><div class="hex">#101215</div></div>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2>七 · 交互与可读性</h2>
+  <div class="grid-3">
+    <div class="card">
+      <p class="k">指针</p>
+      <h3>透镜跟随</h3>
+      <p>指针进入玻璃控件时，控件背后出现一层 44px 的柔光“透镜”，跟随指针 120ms 缓动；按下时缩到 0.97 并加深内阴影，松手回弹。</p>
+    </div>
+    <div class="card">
+      <p class="k">层级</p>
+      <h3>画布永不压暗</h3>
+      <p>浮层出现/消失只做自身位移与透明度，不给画布加遮罩。唯一的例外是模态设置面板，它把画布降到最后层并轻微模糊，明确“此刻不能画图”。</p>
+    </div>
+    <div class="card">
+      <p class="k">可读性</p>
+      <h3>玻璃上的数字</h3>
+      <p>所有数值用等宽数字（tabular figures）并加 0.5px 暗描边；玻璃下若是密集线条，自动把该区域模糊提高到 40px，优先保证读数。</p>
+    </div>
+    <div class="card">
+      <p class="k">窗口</p>
+      <h3>红绿灯归位</h3>
+      <p>窗口改为全尺寸内容 + 隐藏标题栏（titlebar transparent），红绿灯单独放在左上角小玻璃胶囊里，与工具岛同一水平线。</p>
+    </div>
+    <div class="card">
+      <p class="k">动效</p>
+      <h3>克制</h3>
+      <p>只有三处动效：浮层进出 180ms、按压 0.97、页签切换 120ms 交叉淡入。关闭“减弱动态效果”时全部改为直切。</p>
+    </div>
+    <div class="card">
+      <p class="k">性能</p>
+      <h3>玻璃只在静止处</h3>
+      <p>玻璃层固定在窗口边缘，不随平移缩放重绘；CAD 画布仍是 Metal 单层。模糊由合成器完成，实测不增加画布帧时间。</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:40px">八 · 落地顺序（确认后执行）</h2>
+  <table class="spec">
+    <tr><th style="width:70px">步骤</th><th style="width:220px">内容</th><th>涉及</th></tr>
+    <tr><td class="v">1</td><td>材质层与令牌</td><td>新增 GlassPanel 视图（模糊 + 描边 + 内高光 + 深浅两套参数），把现有 ToolPalette / Sidebar / 状态栏 / 命令行换成玻璃容器；窗口改全尺寸内容 + 透明标题栏</td></tr>
+    <tr><td class="v">2</td><td>主窗口重排</td><td>顶部工具岛（红绿灯 + 图纸页签 + 命令）、左侧工具竖排、右侧 272pt 面板、底部命令行 + 状态胶囊；画布边距归零</td></tr>
+    <tr><td class="v">3</td><td>三个辅助窗口</td><td>设置（分区 + 即时生效）、打印预览（页栏 + 白纸 + 检视器）、使用说明（可搜索）</td></tr>
+    <tr><td class="v">4</td><td>细节与验收</td><td>悬停/按压/淡入、深浅画布联动、1× 屏清晰度、截图与真实图纸逐项核对</td></tr>
+  </table>
+
+  <div class="q" style="margin-top:26px">
+    <b>请确认三点：</b>① 玻璃浮层的整体形态是否按这套走（工具岛 + 左右浮层 + 底部命令行）；② 主窗口默认用深色画布还是浅色画布（界面深浅会跟着画布走）；③ 左侧工具是保持“图标 + 名称”的竖排（信息全但占宽），还是收成 44pt 纯图标（更轻，名称走悬停提示）。
+  </div>
+
+  <div class="foot"><span>CadLens · Liquid Glass 设计稿 A</span><span>2026-11-17</span></div>
+</div>
+</body>
+</html>

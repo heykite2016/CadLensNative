@@ -1,0 +1,28 @@
+# Build products
+build/
+release/
+*.o
+*.a
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+*.dSYM/
+*.iconset/
+
+# Generated stress drawing (regenerate with Tools/make_stress.py)
+Samples/stress.dxf
+
+# Local tooling / OS noise
+.DS_Store
+*.xcuserstate
+/tmp/
+
+# Internal review artifacts that contain real client drawings
+docs/audit/
+docs/shots/
+docs/修复与真实图纸复核.md
+.workbuddy/
+build_*.log
+.backup-ui/
+.build/
+render_headless.swift
