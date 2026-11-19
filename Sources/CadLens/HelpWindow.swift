@@ -73,6 +73,11 @@ final class HelpWindowController: NSWindowController {
             ("视图", "Z 窗口缩放 · E 全图 · P 平移 · LA 图层 · U 撤销"),
             ("按键", "⌘Z 撤销 · ⇧⌘Z 重做 · ⌘0 全图 · ⌘L 线宽 · F3 捕捉 · F7 栅格 · F8 正交 · ⌘P 打印 · ⌘, 设置 · Esc 取消"),
         ]),
+        Section("支持作者", [
+            ("完全免费", "速看CAD 是 GPL-3.0 开源软件：没有广告、没有功能锁、没有“捐赠版”。"),
+            ("为什么放二维码", "维护、适配新图纸格式和修 bug 需要时间；如果它帮你省了时间，可以自愿请作者喝杯咖啡。"),
+            ("不影响功能", "不打赏也永远可以使用全部功能；这个页面只是留一个自愿支持的入口。"),
+        ]),
     ]
 
     private init() {
@@ -92,12 +97,13 @@ final class HelpWindowController: NSWindowController {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func show() {
+    func show(section: Int? = nil) {
         // 每次打开都回到 820×560：上一次被拉成什么样，说明窗口不该记住它。
         window?.setContentSize(NSSize(width: 820, height: 560))
         window?.center()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+        if let section { select(section) }
     }
 
     @objc private func themeChanged() {
@@ -252,9 +258,54 @@ final class HelpWindowController: NSWindowController {
         for (key, detail) in section.rows {
             stack.addArrangedSubview(row(key, detail))
         }
+        if section.title == "支持作者" {
+            stack.addArrangedSubview(supportCard())
+        }
         stack.superview?.layoutSubtreeIfNeeded()
         scroll.contentView.scroll(to: .zero)
         scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
+    /// 赞赏码：只在“支持作者”页出现，启动/工具栏/画布都不弹。
+    /// 整张图保留白色静区，缩放到 300 pt 仍然可以扫；文字另写在下方，
+    /// 避免小窗口里二维码自带的小字看不清。
+    private func supportCard() -> NSView {
+        let box = NSStackView()
+        box.orientation = .vertical
+        box.alignment = .centerX
+        box.spacing = 8
+
+        if let url = Bundle.main.url(forResource: "wechat-reward", withExtension: "jpg",
+                                     subdirectory: "Donate"),
+           let image = NSImage(contentsOf: url) {
+            let view = NSImageView()
+            view.image = image
+            view.imageScaling = .scaleProportionallyUpOrDown
+            view.wantsLayer = true
+            view.layer?.cornerRadius = 14
+            view.layer?.masksToBounds = true
+            view.layer?.borderWidth = 1
+            view.layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+            view.translatesAutoresizingMaskIntoConstraints = false
+            view.widthAnchor.constraint(equalToConstant: 300).isActive = true
+            view.heightAnchor.constraint(equalToConstant: 300).isActive = true
+            box.addArrangedSubview(view)
+        }
+
+        let title = NSTextField(labelWithString: "微信扫码 · 请作者喝杯咖啡")
+        title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        title.textColor = Glass.primaryText
+        title.alignment = .center
+        box.addArrangedSubview(title)
+
+        let note = NSTextField(wrappingLabelWithString: "完全自愿，不打赏也永远可以用全部功能。")
+        note.font = NSFont.systemFont(ofSize: 11.5)
+        note.textColor = Glass.secondaryText
+        note.alignment = .center
+        note.maximumNumberOfLines = 0
+        note.preferredMaxLayoutWidth = 360
+        box.addArrangedSubview(note)
+        return box
     }
 
     /// 工具表：名称、别名、用途、需要几个点，全部从 `MeasureKind` 现取，

@@ -58,7 +58,15 @@ extension CanvasView {
             }
             needsDisplay = true
         } else if activeTool != nil {
-            measureHover = constrained(world)
+            // 第三点是在放尺寸线，不是在图上取点：必须跟鼠标像素同步。
+            // 这里再走 object snap 会把尺寸线吸到附近的墙端点上，松手后
+            // 标注突然跳开——这是"尺寸线和鼠标不同步"的直接原因。
+            if awaitingDimensionLine {
+                measureHover = world
+                snapResult = nil
+            } else {
+                measureHover = constrained(world)
+            }
             needsDisplay = true
         } else if !measurePoints.isEmpty {
             measureHover = constrained(world)
@@ -593,15 +601,16 @@ extension CanvasView {
     // MARK: Measurement commit
 
     func handleToolClick(tool: MeasureKind, world: CGPoint, event: NSEvent) {
-        let point = constrained(world)
-
         // 第三点：尺寸线位置。这是 DIMALIGNED/DIMLINEAR 和两点量距最直观的
         // 区别——尺寸线跟着光标走，用户自己决定放哪，而不是自动压在墙上。
+        // 放置阶段用原始鼠标点，不吸附：吸附只属于被测量的几何点。
         if awaitingDimensionLine {
             awaitingDimensionLine = false
-            finishMeasurement(placement: point)
+            finishMeasurement(placement: world)
             return
         }
+
+        let point = constrained(world)
 
         if tool == .hatchArea {
             commitHatchArea(at: world)
@@ -745,19 +754,19 @@ extension CanvasView {
         let fallback = 30 / max(transform.scale, 1e-9)
         if tool == .linear {
             if abs(b.x - a.x) >= abs(b.y - a.y) {
-                var dy = (placement?.y ?? (mid.y + fallback)) - mid.y
-                if abs(dy) < 6 / transform.scale { dy = fallback }
+                let dy = placement.map { $0.y - mid.y } ?? fallback
                 return CGPoint(x: 0, y: dy)
             }
-            var dx = (placement?.x ?? (mid.x + fallback)) - mid.x
-            if abs(dx) < 6 / transform.scale { dx = fallback }
+            let dx = placement.map { $0.x - mid.x } ?? fallback
             return CGPoint(x: dx, y: 0)
         }
         var nx = -(b.y - a.y), ny = b.x - a.x
         let length = max(hypot(nx, ny), 1e-9)
         nx /= length; ny /= length
-        var offset = placement.map { ($0.x - mid.x) * nx + ($0.y - mid.y) * ny } ?? fallback
-        if abs(offset) < 6 / transform.scale { offset = fallback }
+        // placement 是用户点下的位置，必须原样使用；旧的"离墙太近就弹到
+        // 30px 外"会让尺寸线在点击后突然离开鼠标。只有回车（placement=nil）
+        // 才使用默认外偏。
+        let offset = placement.map { ($0.x - mid.x) * nx + ($0.y - mid.y) * ny } ?? fallback
         return CGPoint(x: nx * offset, y: ny * offset)
     }
 

@@ -31,7 +31,7 @@ SWIFT_FILES=("$ROOT"/Sources/CadLens/*.swift)
     -L"$LS/lib" -lredwg -ldxfrw -liconv -lc++ \
     -framework AppKit -framework Foundation -framework CoreText \
     -framework QuartzCore -framework UniformTypeIdentifiers \
-    -framework PDFKit -framework Metal
+    -framework PDFKit -framework Metal -framework CoreServices
 
 if [ "${1:-}" = "tool" ]; then
     echo "==> 编译命令行工具"
@@ -47,6 +47,9 @@ cp "$BUILD/CadLens" "$APP/Contents/MacOS/CadLens"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 if [ -d "$ROOT/Resources/fonts" ]; then
     cp -R "$ROOT/Resources/fonts" "$APP/Contents/Resources/fonts"
+fi
+if [ -d "$ROOT/Resources/Donate" ]; then
+    cp -R "$ROOT/Resources/Donate" "$APP/Contents/Resources/Donate"
 fi
 if [ -f "$ROOT/Resources/AppIcon.icns" ]; then
     cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"

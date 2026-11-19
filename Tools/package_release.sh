@@ -1,21 +1,29 @@
 #!/bin/bash
-# Builds the distributable DMG + ZIP from build/CadLens.app.
-# Usage: Tools/package_release.sh 3.0.0
+# Builds the distributable DMG + ZIP for one architecture.
+# Usage: Tools/package_release.sh 3.0.0 [x86_64|arm64]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:-3.0.0}"
-APP="$ROOT/build/CadLens.app"
+ARCH="${2:-x86_64}"
+if [ "$ARCH" = "arm64" ]; then
+    APP="$ROOT/build/CadLens-arm64.app"
+else
+    APP="$ROOT/build/CadLens.app"
+fi
 OUT="$ROOT/release"
-NAME="CadLens-${VERSION}-macos-x86_64"
+NAME="CadLens-${VERSION}-macos-${ARCH}"
 
 [ -d "$APP" ] || { echo "missing $APP; run ./build.sh first" >&2; exit 1; }
 
-rm -rf "$OUT" /tmp/cadlens-dmg
+rm -rf /tmp/cadlens-dmg
 mkdir -p "$OUT" /tmp/cadlens-dmg
+rm -f "$OUT/$NAME.dmg" "$OUT/$NAME.zip"
 ditto "$APP" /tmp/cadlens-dmg/CadLens.app
 ln -s /Applications /tmp/cadlens-dmg/Applications
 cp "$ROOT/Resources/Brand/package-b.icns" /tmp/cadlens-dmg/.VolumeIcon.icns
+cp "$ROOT/Resources/Donate/wechat-reward.jpg" "/tmp/cadlens-dmg/支持作者.jpg"
+cp "$ROOT/Resources/Donate/支持作者.txt" "/tmp/cadlens-dmg/支持作者.txt"
 
 hdiutil create -volname "速看CAD" -srcfolder /tmp/cadlens-dmg -fs HFS+ \
     -format UDRW -ov /tmp/CadLens-rw.dmg >/dev/null

@@ -170,6 +170,18 @@ final class CanvasView: NSView {
     /// 的），留着工具激活只会让下一次点击在用户没准备的时候又落一个点。
     func finishToolAfterCommit() {
         activeTool = nil
+        // 刚生成的标注不要在“选中/编辑”状态里留着：add() 会把它设为
+        // selectedAnnotation，画布上就是一层蓝色高亮，用户必须再点一下
+        // 空白处才退出。测量完成就是查看状态，清掉选中。
+        selectedAnnotation = nil
+        onSelectionChanged?(nil)
+        // 即使 activeTool 已经是 nil，也显式同步一次调色板。工具状态和
+        // 左侧蓝色高亮曾经在某些收尾路径上不同步，用户得再点一下画布才
+        // 退出；多这一行是幂等的，不改变正常路径。
+        onToolChanged?(nil)
+        measureHover = nil
+        snapResult = nil
+        needsDisplay = true
     }
 
     /// 指针离开画布前的最后一个画布坐标。工具切换/关掉设置面板时用它立刻

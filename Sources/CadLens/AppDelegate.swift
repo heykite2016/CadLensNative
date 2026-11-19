@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: MainWindowController?
@@ -73,6 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                   keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let defaultHandler = NSMenuItem(title: "设为默认 DWG/DXF 打开方式",
+                                        action: #selector(setDefaultCADHandler(_:)),
+                                        keyEquivalent: "")
+        defaultHandler.target = self
+        appMenu.addItem(defaultHandler)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "隐藏 \(appName)",
                         action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
@@ -239,6 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                keyEquivalent: "?")
         usage.target = self
         helpMenu.addItem(usage)
+        let support = NSMenuItem(title: "支持作者…", action: #selector(showSupport(_:)),
+                                 keyEquivalent: "")
+        support.target = self
+        helpMenu.addItem(support)
         helpItem.submenu = helpMenu
         main.addItem(helpItem)
 
@@ -334,6 +344,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// NSAlert 弹框，用户点菜单看到的是旧内容，另做的说明窗口根本没打开。
     @objc private func showHelp(_ sender: Any?) {
         HelpWindowController.shared.show()
+    }
+
+    @objc private func showSupport(_ sender: Any?) {
+        // Index 8 is the “支持作者” section appended to HelpWindowController.
+        HelpWindowController.shared.show(section: 8)
+    }
+
+    /// The Finder default can also be changed in Get Info, but a one-click
+    /// entry inside the app is easier after moving it into /Applications.
+    @objc private func setDefaultCADHandler(_ sender: Any?) {
+        let types = ["com.autodesk.dwg", "com.autodesk.dxf"]
+        let bundleID = (Bundle.main.bundleIdentifier ?? "com.cadlens.native") as CFString
+        var failures: [String] = []
+        for type in types {
+            let status = LSSetDefaultRoleHandlerForContentType(
+                type as CFString, .all, bundleID)
+            if status != noErr { failures.append(type) }
+        }
+        let alert = NSAlert()
+        if failures.isEmpty {
+            alert.messageText = "已设为默认打开方式"
+            alert.informativeText = "以后双击 .dwg / .dxf 会用速看CAD 打开。\n也可以在 Finder 的「显示简介 → 打开方式」里随时改回。"
+            alert.alertStyle = .informational
+        } else {
+            alert.messageText = "设置失败"
+            alert.informativeText = "无法注册：\(failures.joined(separator: "、"))。\n请在 Finder 的「显示简介 → 打开方式」中手动选择速看CAD。"
+            alert.alertStyle = .warning
+        }
+        alert.addButton(withTitle: "好")
+        alert.runModal()
     }
 
     @objc private func openRecent(_ sender: NSMenuItem) {

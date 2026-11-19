@@ -1,17 +1,21 @@
 # 速看CAD · CadLens Native
 
 > macOS 原生 DWG/DXF/PDF 看图与现场测量工具。纯 Swift + AppKit，DWG/DXF 解析沿用
-> LibreDWG + libdxfrw，渲染走 Metal + Core Graphics 分块管线；没有 Qt 运行期依赖。
+> LibreDWG + libdxfrw，渲染走 Metal + Core Graphics 分块管线。
 
 **GitHub:** https://github.com/heykite2016/CadLensNative  
 **Gitee:** https://gitee.com/FanieWang/CadLensNative
 
 ## 下载
 
-在 Releases 里下载 macOS 版本（当前构建为 **x86_64**）：
+在 Releases 里按芯片下载（v3.0.0）：
 
-- `CadLens-3.0.0-macos-x86_64.dmg`：拖进「应用程序」即可
-- `CadLens-3.0.0-macos-x86_64.zip`：绿色版
+| 芯片 | GitHub 下载 | 国内镜像 |
+|---|---|---|
+| Apple Silicon（arm64） | [DMG](https://github.com/heykite2016/CadLensNative/releases/download/v3.0.0/CadLens-3.0.0-macos-arm64.dmg) · [ZIP](https://github.com/heykite2016/CadLensNative/releases/download/v3.0.0/CadLens-3.0.0-macos-arm64.zip) | [Gitee Releases](https://gitee.com/FanieWang/CadLensNative/releases) |
+| Intel（x86_64） | [DMG](https://github.com/heykite2016/CadLensNative/releases/download/v3.0.0/CadLens-3.0.0-macos-x86_64.dmg) · [ZIP](https://github.com/heykite2016/CadLensNative/releases/download/v3.0.0/CadLens-3.0.0-macos-x86_64.zip) | [Gitee Releases](https://gitee.com/FanieWang/CadLensNative/releases) |
+
+DMG 拖进「应用程序」即可；ZIP 是绿色版。
 
 应用使用 ad-hoc 签名（没有 Apple 公证）。第一次打开如果被 Gatekeeper 拦住：
 
@@ -109,48 +113,43 @@ open -a build/CadLens.app Samples/plan.dxf
 
 ## 性能设计
 
-原项目为了性能砍了功能（分块光栅、限制实体数）。这一版换掉取舍方式，
-在保留全部功能、不降低任何渲染质量的前提下用架构换性能。
+在保留全部功能、不降低渲染质量的前提下，用架构换性能。
 
-先给一台最低配机器的实测数字（大图 189,116 图元 / 8.5 MB DWG，2560×1600 Retina，
-i5-8210Y + Intel UHD 617 集显）：
+实测环境：189,116 图元 / 8.5 MB DWG，2560×1600 Retina，i5-8210Y + Intel UHD 617 集显。
 
-| 场景 | 旧架构（每帧全量重绘） | 现在 |
-| --- | --- | --- |
-| 全质量一帧 | 3095 ms | 5 ms CPU + 4.5 ms GPU |
-| 拖拽/缩放一帧 | 3095 ms | 2~3 ms CPU + 4.5 ms GPU（受 60 Hz 节拍限制） |
+| 场景 | 当前 |
+| --- | --- |
+| 全质量一帧 | 5 ms CPU + 4.5 ms GPU |
+| 拖拽/缩放一帧 | 2~3 ms CPU + 4.5 ms GPU（受 60 Hz 节拍限制） |
 
 三个渲染层各司其职，且**都只在自己真正变化时才付钱**：
 
 - **解析**：C++ 一次遍历产出扁平数组（`cad_entity` + 共享点池），Swift 侧零拷贝映射；
   151 图元的施工图载入 ~2 ms，块插入递归展开最多 12 层 / 90 万实体上限。
-- **DXF 走 libdxfrw**：LibreDWG 的 DXF 导入器是 O(n²) 的（8000 线 ≈ 3.5 s，5 万线 ≈ 3.5 分钟），
-  libdxfrw 是线性的，所以 DXF 先交给它（8000 线 ≈ 66 ms，5 万线 ≈ 400 ms，快 500 倍），
-  只有它拒收时才回退到 LibreDWG。两条通路在样例上逐图元完全一致（151/151，坐标相同）。
+- **DXF 走 libdxfrw**：libdxfrw 是线性读取，DXF 先交给它（8000 线 ≈ 66 ms，
+  5 万线 ≈ 400 ms），只有它拒收时才回退到 LibreDWG。
 - **线条与文字走 Metal**：线段在世界空间一次性上传成实例缓冲，顶点着色器把每条线段
   扩张成四边形，片元着色器按到中线的距离做一像素抗锯齿。平移缩放只改一个 uniform。
   - 单位法线在**上传时**预算并塞进结构体原有的 padding（每个线段仍是 48 字节，
-    显存零增长）。顶点着色器因此不再需要 `precise::length` + 除法 —— 后者在 Intel
-    集显上会退化成 IEEE 精确开方，是这条路径最大的开销（17 ms → 4.5 ms）。
+    显存零增长）。顶点着色器因此不再需要 `precise::length` + 除法，这是这条路径
+    最大的开销之一（17 ms → 4.5 ms）。
   - 曲线按其屏幕尺寸细分，折线按 0.35 px 容差简化；几何按 log2(scale) 分桶缓存，
     只有相机跨桶才重建。
+  - 手势期间不重建 stroke/text，松手 0.12 s 后再做一次全质量重建；最终画面不变。
 - **填充与格网走填充层**：`CALayer` 的 `contents` 承载一张世界坐标位图（视口 + 25% 边距），
-  平移缩放只是改 `frame`，由合成器在 GPU 上完成。**这是最大的一处浪费**：旧实现
-  每帧用 Core Graphics 把这张位图重画进 view 的 backing store，再整块上传，
-  实测 26.7 ms/帧，而它内部真正的绘制只有 1.2 ms。世界坐标的参考栅格也画进这张位图，
-  于是格网跟着一起免费移动。
+  平移缩放只是改 `frame`，由合成器在 GPU 上完成。世界坐标的参考栅格也画进这张位图，
+  于是格网跟着一起免费移动；只有相机变化超出边距才重栅格。
 - **标注与指针走 overlay 层**：只有含世界坐标内容（标注、测量橡皮筋）时，相机变化才
-  触发它重绘。十字光标是两条只改 `frame` 的 1 像素子图层，指针移动不再上传整块
-  2560×1600 backing store（旧实现 11.4 ms/帧）。
+  触发它重绘。十字光标是两条只改 `frame` 的 1 像素子图层，指针移动不上传整块
+  2560×1600 backing store。
 - **裁剪**：均匀网格空间索引（`SpatialIndex`）做视口剔除与命中测试，O(可见图元) 而非 O(全部图元)。
 - **测量**：几何计算全在文档坐标系完成，视图变换只做投影，缩放不损失精度。
 - **导出**：走同一渲染器但跳过所有缓存，直接按目标分辨率绘制矢量。
 
-`CGContext` 在这里是**不能**用来画图的：它对 1 设备像素以上的描边会走通用路径
-（生成描边轮廓 + 逐顶点求 miter 交点），合成测试里 10 万条线段在 w=1.0 时要 166 ms，
+`CGContext` 在这里**不适合**直接画高密度描边：它对 1 设备像素以上的描边会走通用路径
+（生成描边轮廓 + 逐顶点求 miter 交点），10 万条线段在 w=1.0 时要 166 ms，
 w=1.2 时要 **292 秒**，10 万个小四边形填充要 **287 秒**。Retina 上 `max(px, 0.6) × 2`
-保证所有线宽都超过 1 像素，所以这条路径必然踩中。它现在只用于填充、格网、标注和导出。
-
+保证所有线宽都超过 1 像素，所以它只用于填充、格网、标注和导出。
 
 ## 开发工具
 
@@ -216,17 +215,18 @@ swiftc -O Tools/make_sample_pdf.swift -o /tmp/m && /tmp/m Samples/plan.pdf
 ./Tools/make_icon.sh                               # Resources/AppIcon.icns
 ```
 
+## 支持作者
+
+速看CAD 完全免费、开源（GPL-3.0-or-later）。没有广告、没有功能锁、没有“捐赠版”。
+
+如果它帮你省了时间，可以扫码请作者喝杯咖啡；**不打赏也永远可以使用全部功能**。
+
+<img src="Resources/Donate/wechat-reward.jpg" width="260" alt="微信赞赏码">
+
+也可以从菜单 **帮助 → 支持作者…** 找到这张码。安装包根目录同样附带一张，纯属自愿。
+
 ## 许可证
 
 本项目以 **GPL-3.0-or-later** 发布，见 [LICENSE](LICENSE)。DWG/DXF 解析依赖
 LibreDWG（GPL-3.0-or-later）与 libdxfrw（GPL-2.0-or-later）；分发二进制时请一并遵守
 其许可证。字体许可见 [DEPENDENCIES.md](DEPENDENCIES.md)。
-
-## 与 Qt 原版的差异
-
-| 方面 | Qt 原版 | 本版 |
-|---|---|---|
-| 框架 | Qt 6 Widgets | AppKit（NSWindow/NSToolbar/NSSplitViewController） |
-| PDF | PDFium（需自带二进制） | 系统 PDFKit，零额外依赖 |
-| 渲染 | 直接绘制 + 缓存位图 | Metal 实例化描边 + 图集文字 + 三层缓存 |
-| 分发 | 依赖 Qt 框架包 | 单个 11 MB 可执行文件，无外部框架 |
